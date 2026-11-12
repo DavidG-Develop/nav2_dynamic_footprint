@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>nav2_dynamic_footprint</name>
-  <version>1.1.1</version>
+  <version>1.2.0</version>
   <description>URDF collision and TF based dynamic footprints for Nav2.</description>
   <maintainer email="my@email.com">David Grbac</maintainer>
   <license>Apache-2.0</license>

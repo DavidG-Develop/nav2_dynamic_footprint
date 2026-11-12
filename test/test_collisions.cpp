@@ -19,8 +19,10 @@ protected:
   static rclcpp::NodeOptions options(const std::string & collisions)
   {
     rclcpp::NodeOptions result;
-    result.parameter_overrides({rclcpp::Parameter("robot_description",
-      "<robot name='test'><link name='base_link'>" + collisions + "</link></robot>")});
+    result.parameter_overrides(
+      {rclcpp::Parameter(
+          "robot_description",
+          "<robot name='test'><link name='base_link'>" + collisions + "</link></robot>")});
     return result;
   }
 
@@ -28,8 +30,9 @@ protected:
     const std::string & geometry, const std::string & origin,
     double min_x, double max_x, double min_y, double max_y)
   {
-    auto node = std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(options(
-          "<collision>" + origin + "<geometry>" + geometry + "</geometry></collision>"));
+    auto node = std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(
+      options(
+        "<collision>" + origin + "<geometry>" + geometry + "</geometry></collision>"));
     auto observer = std::make_shared<rclcpp::Node>("collision_observer");
     geometry_msgs::msg::Polygon::ConstSharedPtr received;
     auto subscription = observer->create_subscription<geometry_msgs::msg::Polygon>(
@@ -61,20 +64,23 @@ protected:
 
 TEST_F(Collisions, RotatedOffsetBox)
 {
-  expectBounds("<box size='2 1 1'/>", "<origin xyz='1 2 0' rpy='0 0 1.5707963267948966'/>",
+  expectBounds(
+    "<box size='2 1 1'/>", "<origin xyz='1 2 0' rpy='0 0 1.5707963267948966'/>",
     0.5, 1.5, 1, 3);
 }
 
 TEST_F(Collisions, CurvedPrimitivesConservativelyBounded)
 {
   expectBounds("<sphere radius='1'/>", "", -1, 1, -1, 1);
-  expectBounds("<cylinder radius='1' length='4'/>",
+  expectBounds(
+    "<cylinder radius='1' length='4'/>",
     "<origin rpy='1.5707963267948966 0 0'/>", -1, 1, -2, 2);
 }
 
 TEST_F(Collisions, ScaledMeshResource)
 {
-  expectBounds("<mesh filename='file://" TEST_MESH "' scale='2 3 1'/>",
+  expectBounds(
+    "<mesh filename='file://" TEST_MESH "' scale='2 3 1'/>",
     "<origin xyz='1 2 0'/>", 1, 3, 2, 5);
 }
 
@@ -82,12 +88,16 @@ TEST_F(Collisions, InvalidDescriptionAndEmptyCollisionsFailConstruction)
 {
   rclcpp::NodeOptions invalid;
   invalid.parameter_overrides({rclcpp::Parameter("robot_description", "invalid XML")});
-  EXPECT_THROW(std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(invalid),
+  EXPECT_THROW(
+    std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(invalid),
     std::invalid_argument);
-  EXPECT_THROW(std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(options("")),
+  EXPECT_THROW(
+    std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(options("")),
     std::invalid_argument);
-  EXPECT_THROW(std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(options(
-      "<collision><geometry><box size='0 1 1'/></geometry></collision>")),
+  EXPECT_THROW(
+    std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(
+      options(
+        "<collision><geometry><box size='0 1 1'/></geometry></collision>")),
     std::invalid_argument);
 }
 
@@ -105,7 +115,8 @@ TEST_F(Collisions, RetainedTopicDescriptionAndUpdates)
   // Publish before the subscriber exists to verify transient-local delivery.
   publisher->publish(description);
   rclcpp::NodeOptions topic_options;
-  topic_options.parameter_overrides({
+  topic_options.parameter_overrides(
+  {
     rclcpp::Parameter("robot_description_topic", "test_description"),
     rclcpp::Parameter("footprint_topic", "test_topic_footprint")});
   auto node = std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(topic_options);
@@ -161,8 +172,9 @@ TEST_F(Collisions, RetainedTopicDescriptionAndUpdates)
 
 TEST_F(Collisions, ParameterDescriptionDisablesTopicSubscription)
 {
-  auto node = std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(options(
-        "<collision><geometry><box size='1 1 1'/></geometry></collision>"));
+  auto node = std::make_shared<nav2_dynamic_footprint::DynamicFootprint>(
+    options(
+      "<collision><geometry><box size='1 1 1'/></geometry></collision>"));
   for (const auto & endpoint : node->get_subscriptions_info_by_topic("robot_description")) {
     EXPECT_NE(endpoint.node_name(), node->get_name());
   }

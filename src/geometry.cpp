@@ -13,12 +13,15 @@ std::vector<Point> convex_hull(std::vector<Point> points)
       throw std::invalid_argument("Non-finite footprint coordinate");
     }
   }
-  std::sort(points.begin(), points.end(), [](const Point & a, const Point & b) {
+  std::sort(
+    points.begin(), points.end(), [](const Point & a, const Point & b) {
       return a.x < b.x || (a.x == b.x && a.y < b.y);
-  });
-  points.erase(std::unique(points.begin(), points.end(), [](const Point & a, const Point & b) {
-      return a.x == b.x && a.y == b.y;
-  }), points.end());
+    });
+  points.erase(
+    std::unique(
+      points.begin(), points.end(), [](const Point & a, const Point & b) {
+        return a.x == b.x && a.y == b.y;
+      }), points.end());
   const auto cross = [](const Point & a, const Point & b, const Point & c) {
       return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     };

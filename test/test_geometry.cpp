@@ -26,6 +26,7 @@ TEST(Geometry, RejectsDegenerateAndNonFiniteInputs)
   EXPECT_THROW(convex_hull({}), std::invalid_argument);
   EXPECT_THROW(convex_hull({{0, 0}}), std::invalid_argument);
   EXPECT_THROW(convex_hull({{0, 0}, {1, 0}, {2, 0}}), std::invalid_argument);
-  EXPECT_THROW(convex_hull({{0, 0}, {1, 0}, {0, std::numeric_limits<double>::infinity()}}),
+  EXPECT_THROW(
+    convex_hull({{0, 0}, {1, 0}, {0, std::numeric_limits<double>::infinity()}}),
     std::invalid_argument);
 }

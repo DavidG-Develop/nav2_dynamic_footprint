@@ -16,8 +16,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ros_distro: [jazzy, lyrical, rolling]
+        ros_distro: [jazzy, lyrical, humble, rolling]
         include:
+          - ros_distro: humble
+            ubuntu: jammy
           - ros_distro: jazzy
             ubuntu: noble
           - ros_distro: lyrical

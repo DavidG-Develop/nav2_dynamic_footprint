@@ -9,6 +9,7 @@ from URDF collision geometry and TF supplied by `robot_state_publisher`.
 
 | Distribution | Status |
 |--------------|--------|
+| Humble | [![Humble](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-status-humble.yaml/badge.svg?branch=main)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
 | Jazzy | [![Jazzy](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-status-jazzy.yaml/badge.svg?branch=main)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
 | Lyrical | [![Lyrical](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-status-lyrical.yaml/badge.svg?branch=main)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
 | Rolling | [![Rolling](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-status-rolling.yaml/badge.svg?branch=main)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
@@ -73,7 +74,7 @@ By default the output is `Polygon`. Set `use_stamped_polygon:=true` at launch
 Its header contains `base_frame` and the common TF time used for the geometry
 (current ROS time for entirely static geometry). On Lyrical/Rolling, also set
 `subscribe_to_stamped_footprint: true` in both Nav2 costmaps. Keep the default
-unstamped mode for Jazzy.
+unstamped mode for Humble/Jazzy.
 
 One publisher serves both costmaps on `/dynamic_footprint`. Add these remappings
 to the Nav2 `controller_server` and `planner_server` launch definitions

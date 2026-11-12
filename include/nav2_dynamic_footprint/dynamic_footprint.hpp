@@ -12,6 +12,7 @@
 #include "geometry_msgs/msg/polygon.hpp"
 #include "geometry_msgs/msg/polygon_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "rcl_interfaces/msg/parameter_event.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "tf2/LinearMath/Vector3.hpp"
@@ -65,7 +66,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr description_subscription_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr validation_callback_;
-  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr update_callback_;
+  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameter_events_;
 };
 
 class DynamicFootprint : public FootprintNode<rclcpp::Node>

@@ -1,6 +1,7 @@
 #include "nav2_dynamic_footprint/dynamic_footprint.hpp"
 #include "nav2_dynamic_footprint/geometry.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <stdexcept>
@@ -8,6 +9,7 @@
 
 #include "geometric_shapes/shape_operations.h"
 #include "rclcpp_components/register_node_macro.hpp"
+#include "rclcpp/parameter_client.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "tf2/LinearMath/Transform.hpp"
 #if __has_include("urdf/model.hpp")
@@ -66,18 +68,28 @@ FootprintNode<NodeT>::FootprintNode(const rclcpp::NodeOptions & options)
       }
       return result;
     });
-  update_callback_ = this->add_post_set_parameters_callback(
-    [this](const std::vector<rclcpp::Parameter> & parameters) {
-      std::lock_guard<std::recursive_mutex> lock(mutex_);
-      bool rate_changed = false;
-      for (const auto & parameter : parameters) {
-        if (parameter.get_name() == "publish_rate") {
-          publish_rate_ = parameter.as_double();
-          rate_changed = true;
-        } else if (parameter.get_name() == "max_transform_age") {
-          max_transform_age_ = parameter.as_double();
-        }
+  // Parameter events exist on Humble too and are emitted only after a successful commit.
+  // Read the committed snapshot instead of applying event payloads, which may be older.
+  parameter_events_ = rclcpp::AsyncParametersClient::on_parameter_event(
+    this->get_node_topics_interface(),
+    [this](rcl_interfaces::msg::ParameterEvent::ConstSharedPtr event) {
+      if (event->node != this->get_node_base_interface()->get_fully_qualified_name()) {
+        return;
       }
+      const auto tuning_changed = [](const auto & parameters) {
+        return std::any_of(
+          parameters.begin(), parameters.end(), [](const auto & parameter) {
+            return parameter.name == "publish_rate" || parameter.name == "max_transform_age";
+          });
+      };
+      if (!tuning_changed(event->new_parameters) && !tuning_changed(event->changed_parameters)) {
+        return;
+      }
+      const auto parameters = this->get_parameters({"publish_rate", "max_transform_age"});
+      std::lock_guard<std::recursive_mutex> lock(mutex_);
+      const bool rate_changed = publish_rate_ != parameters[0].as_double();
+      publish_rate_ = parameters[0].as_double();
+      max_transform_age_ = parameters[1].as_double();
       if (active_ && rate_changed) {
         reset_timer();
       }
@@ -105,8 +117,9 @@ void FootprintNode<NodeT>::configure_runtime()
     stamped_publisher_ = this->template create_publisher<geometry_msgs::msg::PolygonStamped>(
       topic, rclcpp::QoS(1));
   } else {
-    publisher_ = this->template create_publisher<geometry_msgs::msg::Polygon>(topic,
-        rclcpp::QoS(1));
+    publisher_ = this->template create_publisher<geometry_msgs::msg::Polygon>(
+      topic,
+      rclcpp::QoS(1));
   }
   if (!description.empty()) {
     load_description(description);
@@ -120,12 +133,14 @@ void FootprintNode<NodeT>::configure_runtime()
           RCLCPP_INFO(this->get_logger(), "Loaded robot_description from topic");
         } catch (const std::exception & error) {
           collisions_.clear();
-          RCLCPP_ERROR(this->get_logger(), "Footprint withheld: invalid robot_description: %s",
+          RCLCPP_ERROR(
+            this->get_logger(), "Footprint withheld: invalid robot_description: %s",
             error.what());
         }
       });
-    RCLCPP_INFO(this->get_logger(), "Waiting for robot_description on %s",
-        description_topic.c_str());
+    RCLCPP_INFO(
+      this->get_logger(), "Waiting for robot_description on %s",
+      description_topic.c_str());
   }
 }
 
@@ -170,7 +185,8 @@ void FootprintNode<NodeT>::load_description(const std::string & description)
           throw std::invalid_argument("Cannot load collision mesh: " + mesh->filename);
         }
         for (unsigned int i = 0; i < shape->vertex_count; ++i) {
-          output.vertices.push_back(origin * tf2::Vector3(
+          output.vertices.push_back(
+            origin * tf2::Vector3(
               shape->vertices[3 * i], shape->vertices[3 * i + 1], shape->vertices[3 * i + 2]));
         }
       } else {
@@ -209,6 +225,8 @@ void FootprintNode<NodeT>::update()
   }
   try {
     std::vector<Point> points;
+    // Query cached transforms directly; no timeout or dedicated listener thread is needed.
+    const tf2::BufferCore & transforms = *buffer_;
     // A common timestamp prevents mixing independently moving links at different times.
     const auto stamp = this->now();
     auto query = stamp;
@@ -217,19 +235,21 @@ void FootprintNode<NodeT>::update()
       if (collision.frame == base_frame_) {
         continue;
       }
-      const auto latest = buffer_->lookupTransform(
+      const auto latest = transforms.lookupTransform(
         base_frame_, collision.frame, tf2::TimePointZero);
       const rclcpp::Time latest_stamp(latest.header.stamp, this->get_clock()->get_clock_type());
       // TF returns zero for entirely static chains, which never expire.
       if (latest_stamp.nanoseconds() != 0) {
         const double age = (stamp - latest_stamp).seconds();
         if (age < 0.0) {
-          throw std::runtime_error("Collision TF for " + collision.frame + " is " +
+          throw std::runtime_error(
+                  "Collision TF for " + collision.frame + " is " +
                   std::to_string(-age) + " s ahead of the node clock; check clock synchronization "
                   "and use_sim_time");
         }
         if (age > max_transform_age_) {
-          throw std::runtime_error("Collision TF for " + collision.frame + " is " +
+          throw std::runtime_error(
+                  "Collision TF for " + collision.frame + " is " +
                   std::to_string(age) + " s old; max_transform_age=" +
                   std::to_string(max_transform_age_) + " s");
         }
@@ -239,14 +259,16 @@ void FootprintNode<NodeT>::update()
         dynamic_transform = true;
       }
     }
+    const auto query_time = tf2::TimePoint(std::chrono::nanoseconds(query.nanoseconds()));
     for (const auto & collision : collisions_) {
       tf2::Transform transform = tf2::Transform::getIdentity();
       if (collision.frame != base_frame_) {
-        const auto msg = buffer_->lookupTransform(base_frame_, collision.frame, query);
+        const auto msg = transforms.lookupTransform(base_frame_, collision.frame, query_time);
         const auto & q = msg.transform.rotation;
         const auto & t = msg.transform.translation;
-        transform = tf2::Transform(tf2::Quaternion(q.x, q.y, q.z, q.w),
-            tf2::Vector3(t.x, t.y, t.z));
+        transform = tf2::Transform(
+          tf2::Quaternion(q.x, q.y, q.z, q.w),
+          tf2::Vector3(t.x, t.y, t.z));
       }
       for (const auto & vertex : collision.vertices) {
         const auto p = transform * vertex;
@@ -292,7 +314,8 @@ void FootprintNode<NodeT>::report_failure(const std::string & reason)
     }
   } else if (now >= next_warning_) {
     const double duration = std::chrono::duration<double>(now - blocked_since_).count();
-    RCLCPP_WARN(this->get_logger(), "Footprint still withheld after %.1f s: %s",
+    RCLCPP_WARN(
+      this->get_logger(), "Footprint still withheld after %.1f s: %s",
       duration, reason.c_str());
     next_warning_ = now + std::chrono::seconds(5);
   }
@@ -304,7 +327,8 @@ void FootprintNode<NodeT>::report_success()
   if (publication_blocked_) {
     const double duration = std::chrono::duration<double>(
       std::chrono::steady_clock::now() - blocked_since_).count();
-    RCLCPP_INFO(this->get_logger(), "Footprint publishing %s after %.2f s; geometry and TF valid",
+    RCLCPP_INFO(
+      this->get_logger(), "Footprint publishing %s after %.2f s; geometry and TF valid",
       published_once_ ? "resumed" : "started", duration);
   } else if (!published_once_) {
     RCLCPP_INFO(this->get_logger(), "Footprint publishing started; geometry and TF valid");
@@ -383,9 +407,10 @@ DynamicFootprintLifecycle::DynamicFootprintLifecycle(const rclcpp::NodeOptions &
 : FootprintNode<rclcpp_lifecycle::LifecycleNode>(options)
 {
   preshutdown_callback_ = std::make_unique<rclcpp::PreShutdownCallbackHandle>(
-    get_node_base_interface()->get_context()->add_pre_shutdown_callback([this]() {
-      on_cleanup(get_current_state());
-    }));
+    get_node_base_interface()->get_context()->add_pre_shutdown_callback(
+      [this]() {
+        on_cleanup(get_current_state());
+      }));
 }
 
 DynamicFootprintLifecycle::~DynamicFootprintLifecycle()

@@ -98,7 +98,19 @@ class TestFootprint(unittest.TestCase):
             subscriptions.append(node.create_subscription(
                 msg_type, topic, lambda msg, key=topic: receive(key, msg), 10))
         joints = node.create_publisher(JointState, '/joint_states', 10)
-        client = node.create_client(ChangeState, '/costmap/change_state')
+        client = None
+
+        def costmap_ready():
+            nonlocal client
+            # The standalone costmap's namespace differs between Nav2 versions.
+            if client is None:
+                for service, types in node.get_service_names_and_types():
+                    if (service.startswith('/costmap/') and service.endswith('/change_state')
+                            and 'lifecycle_msgs/srv/ChangeState' in types):
+                        client = node.create_client(ChangeState, service)
+                        break
+            return client is not None and client.service_is_ready()
+
         manager_client = node.create_client(Trigger, '/test_manager/is_active')
         angle = 0.0
 
@@ -132,7 +144,7 @@ class TestFootprint(unittest.TestCase):
             self.assertNotIn('/composed_footprint', messages)
             proc_output.assertWaitFor('Waiting for first valid footprint:', process=standalone)
             proc_output.assertWaitFor('Footprint still withheld after', process=standalone)
-            self.assertTrue(wait(lambda: client.service_is_ready()))
+            self.assertTrue(wait(costmap_ready))
             for transition in [1, 3]:  # configure, activate
                 request = ChangeState.Request()
                 request.transition.id = transition
@@ -173,6 +185,13 @@ class TestFootprint(unittest.TestCase):
             self.assertTrue(wait(lambda: all(
                 abs(bounds(messages[t])[1] - 2.0) < 0.001 for t in topics)))
             proc_output.assertWaitFor('Footprint publishing resumed', process=standalone)
+            # Release Nav2's update thread and plugins before process shutdown on every distro.
+            for transition in [4, 2, 5]:  # deactivate, cleanup, unconfigured shutdown
+                request = ChangeState.Request()
+                request.transition.id = transition
+                future = client.call_async(request)
+                self.assertTrue(wait(future.done))
+                self.assertTrue(future.result().success)
         finally:
             node.destroy_node()
 
