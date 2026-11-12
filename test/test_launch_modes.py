@@ -52,6 +52,7 @@ def generate_test_description():
 
 
 class TestModes(unittest.TestCase):
+
     def test_modes(self):
         rclpy.init()
         node = rclpy.create_node('launch_modes_observer')
@@ -124,6 +125,7 @@ class TestModes(unittest.TestCase):
 
 @launch_testing.post_shutdown_test()
 class TestExit(unittest.TestCase):
+
     def test_exit(self, proc_info, temporary):
         try:
             launch_testing.asserts.assertExitCodes(proc_info)

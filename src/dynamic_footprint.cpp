@@ -10,7 +10,11 @@
 #include "rclcpp_components/register_node_macro.hpp"
 #include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "tf2/LinearMath/Transform.hpp"
+#if __has_include("urdf/model.hpp")
+#include "urdf/model.hpp"
+#else
 #include "urdf/model.h"
+#endif
 
 namespace nav2_dynamic_footprint
 {
@@ -338,7 +342,7 @@ DynamicFootprintLifecycle::CallbackReturn DynamicFootprintLifecycle::on_activate
 {
   std::lock_guard<std::recursive_mutex> lock(lifecycle_mutex_);
   try {
-    bond_ = std::make_unique<bond::Bond>(
+    bond_ = std::make_shared<bond::Bond>(
       "bond", get_name(), get_node_base_interface(), get_node_logging_interface(),
       get_node_parameters_interface(), get_node_timers_interface(), get_node_topics_interface());
     bond_->setHeartbeatPeriod(0.1);

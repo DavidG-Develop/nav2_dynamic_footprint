@@ -155,7 +155,7 @@ TEST_F(ParametersLifecycle, TransformAgeChangesAffectPublication)
   config.append_parameter_override("max_transform_age", 0.1);
   auto node = std::make_shared<DynamicFootprint>(config);
   auto source = std::make_shared<rclcpp::Node>("age_test_source");
-  tf2_ros::TransformBroadcaster broadcaster(source);
+  tf2_ros::TransformBroadcaster broadcaster(*source);
   auto timer = source->create_wall_timer(20ms, [&]() {
         geometry_msgs::msg::TransformStamped transform;
         transform.header.frame_id = "base_link";

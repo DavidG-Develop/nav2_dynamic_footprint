@@ -79,7 +79,7 @@ protected:
 
 private:
   std::recursive_mutex lifecycle_mutex_;
-  std::unique_ptr<bond::Bond> bond_;
+  std::shared_ptr<bond::Bond> bond_;
   std::unique_ptr<rclcpp::PreShutdownCallbackHandle> preshutdown_callback_;
 };
 }  // namespace nav2_dynamic_footprint

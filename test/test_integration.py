@@ -71,6 +71,7 @@ def generate_test_description():
 
 
 class TestFootprint(unittest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         rclpy.init()
@@ -173,5 +174,6 @@ class TestFootprint(unittest.TestCase):
 
 @launch_testing.post_shutdown_test()
 class TestExit(unittest.TestCase):
+
     def test_exit(self, proc_info):
         launch_testing.asserts.assertExitCodes(proc_info)
