@@ -80,7 +80,7 @@ class TestFootprint(unittest.TestCase):
     def tearDownClass(cls):
         rclpy.shutdown()
 
-    def test_dynamic_geometry_and_nav2(self):
+    def test_dynamic_geometry_and_nav2(self, proc_output, standalone):
         node = rclpy.create_node('footprint_test')
         messages = {}
         counts = {}
@@ -125,11 +125,13 @@ class TestFootprint(unittest.TestCase):
 
         try:
             # Without joint TF neither publisher may emit a partial base-only hull.
-            deadline = time.monotonic() + 0.7
+            deadline = time.monotonic() + 2.4
             while time.monotonic() < deadline:
                 rclpy.spin_once(node, timeout_sec=0.02)
             self.assertNotIn('/costmap/footprint', messages)
             self.assertNotIn('/composed_footprint', messages)
+            proc_output.assertWaitFor('Waiting for first valid footprint:', process=standalone)
+            proc_output.assertWaitFor('Footprint still withheld after', process=standalone)
             self.assertTrue(wait(lambda: client.service_is_ready()))
             for transition in [1, 3]:  # configure, activate
                 request = ChangeState.Request()
@@ -147,6 +149,7 @@ class TestFootprint(unittest.TestCase):
             self.assertTrue(wait(lambda: all(
                 t in messages and abs(bounds(messages[t])[1] - 2.0) < 0.001
                 for t in topics)))
+            proc_output.assertWaitFor('Footprint publishing started', process=standalone)
             for topic in topics:
                 for actual, expected in zip(bounds(messages[topic]), [-0.5, 2.0, -0.5, 0.5]):
                     self.assertAlmostEqual(actual, expected, places=3)
@@ -165,9 +168,11 @@ class TestFootprint(unittest.TestCase):
             while time.monotonic() < deadline:
                 rclpy.spin_once(node, timeout_sec=0.02)
             self.assertEqual(before, [counts[t] for t in topics[:-1]])
+            proc_output.assertWaitFor('Footprint publishing interrupted:', process=standalone)
             angle = 0.0
             self.assertTrue(wait(lambda: all(
                 abs(bounds(messages[t])[1] - 2.0) < 0.001 for t in topics)))
+            proc_output.assertWaitFor('Footprint publishing resumed', process=standalone)
         finally:
             node.destroy_node()
 

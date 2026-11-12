@@ -1,6 +1,7 @@
 #ifndef NAV2_DYNAMIC_FOOTPRINT__DYNAMIC_FOOTPRINT_HPP_
 #define NAV2_DYNAMIC_FOOTPRINT__DYNAMIC_FOOTPRINT_HPP_
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -44,8 +45,14 @@ private:
   void load_description(const std::string & description);
   void update();
   void reset_timer();
+  void report_failure(const std::string & reason);
+  void report_success();
   std::recursive_mutex mutex_;
   bool active_{false};
+  bool published_once_{false};
+  bool publication_blocked_{false};
+  std::chrono::steady_clock::time_point blocked_since_;
+  std::chrono::steady_clock::time_point next_warning_;
   bool use_stamped_polygon_{false};
   std::string base_frame_;
   double publish_rate_{10.0};

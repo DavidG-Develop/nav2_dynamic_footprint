@@ -61,7 +61,8 @@ and rejects non-finite or degenerate input.
 
 All collision geometry contributes to a convex XY envelope. Boxes and meshes use
 vertices; spheres and cylinders use conservative bounding prisms. Missing or stale
-TF withholds the entire update; Nav2 retains its previous footprint.
+TF withholds the entire update; Nav2 retains its previous footprint. Logs report
+startup waiting, persistent failures, publishing interruptions, and recovery.
 
 ## Nav2 integration
 

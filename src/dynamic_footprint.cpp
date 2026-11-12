@@ -222,8 +222,16 @@ void FootprintNode<NodeT>::update()
       const rclcpp::Time latest_stamp(latest.header.stamp, this->get_clock()->get_clock_type());
       // TF returns zero for entirely static chains, which never expire.
       if (latest_stamp.nanoseconds() != 0) {
-        if (latest_stamp > stamp || (stamp - latest_stamp).seconds() > max_transform_age_) {
-          throw std::runtime_error("Collision TF is stale or in the future: " + collision.frame);
+        const double age = (stamp - latest_stamp).seconds();
+        if (age < 0.0) {
+          throw std::runtime_error("Collision TF for " + collision.frame + " is " +
+                  std::to_string(-age) + " s ahead of the node clock; check clock synchronization "
+                  "and use_sim_time");
+        }
+        if (age > max_transform_age_) {
+          throw std::runtime_error("Collision TF for " + collision.frame + " is " +
+                  std::to_string(age) + " s old; max_transform_age=" +
+                  std::to_string(max_transform_age_) + " s");
         }
         if (!dynamic_transform || latest_stamp < query) {
           query = latest_stamp;
@@ -262,11 +270,49 @@ void FootprintNode<NodeT>::update()
     } else {
       publisher_->publish(std::make_unique<geometry_msgs::msg::Polygon>(std::move(polygon)));
     }
+    report_success();
   } catch (const std::exception & error) {
-    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
-      "Footprint withheld: %s", error.what());
+    report_failure(error.what());
   }
 }
+
+template<typename NodeT>
+void FootprintNode<NodeT>::report_failure(const std::string & reason)
+{
+  const auto now = std::chrono::steady_clock::now();
+  if (!publication_blocked_) {
+    publication_blocked_ = true;
+    blocked_since_ = now;
+    // This grace period affects logging only: invalid footprints are always withheld.
+    next_warning_ = now + std::chrono::seconds(published_once_ ? 5 : 2);
+    if (published_once_) {
+      RCLCPP_WARN(this->get_logger(), "Footprint publishing interrupted: %s", reason.c_str());
+    } else {
+      RCLCPP_INFO(this->get_logger(), "Waiting for first valid footprint: %s", reason.c_str());
+    }
+  } else if (now >= next_warning_) {
+    const double duration = std::chrono::duration<double>(now - blocked_since_).count();
+    RCLCPP_WARN(this->get_logger(), "Footprint still withheld after %.1f s: %s",
+      duration, reason.c_str());
+    next_warning_ = now + std::chrono::seconds(5);
+  }
+}
+
+template<typename NodeT>
+void FootprintNode<NodeT>::report_success()
+{
+  if (publication_blocked_) {
+    const double duration = std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - blocked_since_).count();
+    RCLCPP_INFO(this->get_logger(), "Footprint publishing %s after %.2f s; geometry and TF valid",
+      published_once_ ? "resumed" : "started", duration);
+  } else if (!published_once_) {
+    RCLCPP_INFO(this->get_logger(), "Footprint publishing started; geometry and TF valid");
+  }
+  published_once_ = true;
+  publication_blocked_ = false;
+}
+
 template<typename NodeT>
 void FootprintNode<NodeT>::reset_timer()
 {
@@ -288,6 +334,8 @@ void FootprintNode<NodeT>::activate_runtime()
       publisher_->on_activate();
     }
   }
+  published_once_ = false;
+  publication_blocked_ = false;
   active_ = true;
   reset_timer();
 }
