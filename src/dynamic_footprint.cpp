@@ -41,6 +41,7 @@ FootprintNode<NodeT>::FootprintNode(const rclcpp::NodeOptions & options)
   this->template declare_parameter<std::string>(
     "robot_description_topic", "robot_description", startup);
   this->template declare_parameter<std::string>("footprint_topic", "/dynamic_footprint", startup);
+  this->template declare_parameter<bool>("use_stamped_polygon", false, startup);
   this->template declare_parameter<double>("publish_rate", 10.0);
   this->template declare_parameter<double>("max_transform_age", 0.5);
   validation_callback_ = this->add_on_set_parameters_callback(
@@ -91,6 +92,7 @@ void FootprintNode<NodeT>::configure_runtime()
   const auto description = this->get_parameter("robot_description").as_string();
   const auto description_topic = this->get_parameter("robot_description_topic").as_string();
   const auto topic = this->get_parameter("footprint_topic").as_string();
+  use_stamped_polygon_ = this->get_parameter("use_stamped_polygon").as_bool();
   publish_rate_ = this->get_parameter("publish_rate").as_double();
   max_transform_age_ = this->get_parameter("max_transform_age").as_double();
   validate_tuning(publish_rate_, max_transform_age_);
@@ -99,7 +101,13 @@ void FootprintNode<NodeT>::configure_runtime()
   }
   buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
   listener_ = std::make_unique<tf2_ros::TransformListener>(*buffer_, this, false);
-  publisher_ = this->template create_publisher<geometry_msgs::msg::Polygon>(topic, rclcpp::QoS(1));
+  if (use_stamped_polygon_) {
+    stamped_publisher_ = this->template create_publisher<geometry_msgs::msg::PolygonStamped>(
+      topic, rclcpp::QoS(1));
+  } else {
+    publisher_ = this->template create_publisher<geometry_msgs::msg::Polygon>(topic,
+        rclcpp::QoS(1));
+  }
   if (!description.empty()) {
     load_description(description);
   } else {
@@ -238,14 +246,22 @@ void FootprintNode<NodeT>::update()
       }
     }
     const auto hull = convex_hull(std::move(points));
-    auto polygon = std::make_unique<geometry_msgs::msg::Polygon>();
+    geometry_msgs::msg::Polygon polygon;
     for (const auto & point : hull) {
       geometry_msgs::msg::Point32 p;
       p.x = static_cast<float>(point.x);
       p.y = static_cast<float>(point.y);
-      polygon->points.push_back(p);
+      polygon.points.push_back(p);
     }
-    publisher_->publish(std::move(polygon));
+    if (use_stamped_polygon_) {
+      auto message = std::make_unique<geometry_msgs::msg::PolygonStamped>();
+      message->header.frame_id = base_frame_;
+      message->header.stamp = query;
+      message->polygon = std::move(polygon);
+      stamped_publisher_->publish(std::move(message));
+    } else {
+      publisher_->publish(std::make_unique<geometry_msgs::msg::Polygon>(std::move(polygon)));
+    }
   } catch (const std::exception & error) {
     RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000,
       "Footprint withheld: %s", error.what());
@@ -266,7 +282,11 @@ void FootprintNode<NodeT>::activate_runtime()
 {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   if constexpr (std::is_same_v<NodeT, rclcpp_lifecycle::LifecycleNode>) {
-    publisher_->on_activate();
+    if (stamped_publisher_) {
+      stamped_publisher_->on_activate();
+    } else {
+      publisher_->on_activate();
+    }
   }
   active_ = true;
   reset_timer();
@@ -282,6 +302,9 @@ void FootprintNode<NodeT>::deactivate_runtime()
     if (publisher_) {
       publisher_->on_deactivate();
     }
+    if (stamped_publisher_) {
+      stamped_publisher_->on_deactivate();
+    }
   }
 }
 
@@ -294,6 +317,7 @@ void FootprintNode<NodeT>::cleanup_runtime()
   listener_.reset();
   buffer_.reset();
   publisher_.reset();
+  stamped_publisher_.reset();
   collisions_.clear();
 }
 

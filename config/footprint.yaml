@@ -5,6 +5,8 @@ dynamic_footprint:
     robot_description_topic: robot_description
     base_frame: base_link
     footprint_topic: dynamic_footprint
+    # Enable PolygonStamped; configure Nav2 to accept stamped footprints.
+    use_stamped_polygon: false
     # Runtime tuning; other package parameters above are read-only.
     publish_rate: 10.0
     max_transform_age: 0.5

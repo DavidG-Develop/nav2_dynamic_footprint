@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -64,7 +65,8 @@ TEST_F(ParametersLifecycle, RejectedAtomicUpdatesHaveNoSideEffects)
     rclcpp::Parameter("base_frame", "other"),
     rclcpp::Parameter("footprint_topic", "/other"),
     rclcpp::Parameter("robot_description_topic", "/other"),
-    rclcpp::Parameter("robot_description", "other")})
+    rclcpp::Parameter("robot_description", "other"),
+    rclcpp::Parameter("use_stamped_polygon", true)})
   {
     EXPECT_FALSE(node->set_parameters_atomically({parameter}).successful);
   }
@@ -153,20 +155,27 @@ TEST_F(ParametersLifecycle, TransformAgeChangesAffectPublication)
     "<joint name='test_joint' type='fixed'><parent link='base_link'/>"
     "<child link='threshold_link'/></joint></robot>"));
   config.append_parameter_override("max_transform_age", 0.1);
+  config.append_parameter_override("use_stamped_polygon", true);
   auto node = std::make_shared<DynamicFootprint>(config);
   auto source = std::make_shared<rclcpp::Node>("age_test_source");
   tf2_ros::TransformBroadcaster broadcaster(*source);
+  std::vector<builtin_interfaces::msg::Time> transform_stamps;
   auto timer = source->create_wall_timer(20ms, [&]() {
         geometry_msgs::msg::TransformStamped transform;
         transform.header.frame_id = "base_link";
         transform.child_frame_id = "threshold_link";
         transform.header.stamp = source->now() - rclcpp::Duration::from_seconds(0.3);
         transform.transform.rotation.w = 1.0;
+        transform_stamps.push_back(transform.header.stamp);
         broadcaster.sendTransform(transform);
   });
   size_t count = 0;
-  auto subscription = source->create_subscription<geometry_msgs::msg::Polygon>(
-    "/dynamic_footprint", 10, [&](geometry_msgs::msg::Polygon::ConstSharedPtr) {++count;});
+  geometry_msgs::msg::PolygonStamped::ConstSharedPtr received;
+  auto subscription = source->create_subscription<geometry_msgs::msg::PolygonStamped>(
+    "/dynamic_footprint", 10, [&](geometry_msgs::msg::PolygonStamped::ConstSharedPtr msg) {
+      received = std::move(msg);
+      ++count;
+    });
   rclcpp::executors::SingleThreadedExecutor executor;
   executor.add_node(node);
   executor.add_node(source);
@@ -175,7 +184,11 @@ TEST_F(ParametersLifecycle, TransformAgeChangesAffectPublication)
   ASSERT_TRUE(node->set_parameters_atomically({
     rclcpp::Parameter("max_transform_age", 1.0)}).successful);
   spin_for(executor, 500ms);
-  EXPECT_GT(count, 0u);
+  ASSERT_GT(count, 0u);
+  ASSERT_TRUE(received);
+  EXPECT_EQ(received->header.frame_id, "base_link");
+  EXPECT_NE(std::find(transform_stamps.begin(), transform_stamps.end(), received->header.stamp),
+    transform_stamps.end());
   ASSERT_TRUE(node->set_parameters_atomically({
     rclcpp::Parameter("max_transform_age", 0.1)}).successful);
   spin_for(executor, 100ms);

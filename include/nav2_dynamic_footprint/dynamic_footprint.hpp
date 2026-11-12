@@ -9,6 +9,7 @@
 
 #include "bondcpp/bond.hpp"
 #include "geometry_msgs/msg/polygon.hpp"
+#include "geometry_msgs/msg/polygon_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -35,22 +36,25 @@ private:
     std::string frame;
     std::vector<tf2::Vector3> vertices;
   };
+  template<typename MessageT>
   using Publisher = std::conditional_t<
     std::is_same_v<NodeT, rclcpp_lifecycle::LifecycleNode>,
-    rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Polygon>,
-    rclcpp::Publisher<geometry_msgs::msg::Polygon>>;
+    rclcpp_lifecycle::LifecyclePublisher<MessageT>,
+    rclcpp::Publisher<MessageT>>;
   void load_description(const std::string & description);
   void update();
   void reset_timer();
   std::recursive_mutex mutex_;
   bool active_{false};
+  bool use_stamped_polygon_{false};
   std::string base_frame_;
   double publish_rate_{10.0};
   double max_transform_age_{0.5};
   std::vector<Collision> collisions_;
   std::unique_ptr<tf2_ros::Buffer> buffer_;
   std::unique_ptr<tf2_ros::TransformListener> listener_;
-  typename Publisher::SharedPtr publisher_;
+  typename Publisher<geometry_msgs::msg::Polygon>::SharedPtr publisher_;
+  typename Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr stamped_publisher_;
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr description_subscription_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr validation_callback_;

@@ -21,6 +21,8 @@ def start(context):
         'robot_description_topic': argument('robot_description_topic'),
         'base_frame': argument('base_frame'),
         'footprint_topic': argument('footprint_topic'),
+        'use_sim_time': argument('use_sim_time') == 'true',
+        'use_stamped_polygon': argument('use_stamped_polygon') == 'true',
     }]
     if argument('use_composition') == 'false':
         executable = (
@@ -51,6 +53,9 @@ def generate_launch_description():
             'container_name', default_value='',
             description='Existing container to load into; empty starts a dedicated container.'),
         DeclareLaunchArgument('namespace', default_value=''),
+        DeclareLaunchArgument('use_sim_time', default_value='false', choices=['true', 'false']),
+        DeclareLaunchArgument(
+            'use_stamped_polygon', default_value='false', choices=['true', 'false']),
         DeclareLaunchArgument('urdf', default_value=''),
         DeclareLaunchArgument('robot_description_topic', default_value='robot_description'),
         DeclareLaunchArgument('base_frame', default_value='base_link'),

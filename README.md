@@ -44,11 +44,12 @@ robot_description | Empty (subscribe to topic)
 robot_description_topic | robot_description
 base_frame | base_link
 footprint_topic | dynamic_footprint
+use_stamped_polygon | false
 publish_rate | 10.0 Hz
 max_transform_age | 0.5 s
 
 `publish_rate` and `max_transform_age` can be changed at runtime; invalid changes
-are rejected. Frame, topic, and description-source parameters are read-only.
+are rejected. Frame, topic, message type, and description-source parameters are read-only.
 See [example configuration](config/footprint.yaml).
 
 ```bash
@@ -63,6 +64,13 @@ vertices; spheres and cylinders use conservative bounding prisms. Missing or sta
 TF withholds the entire update; Nav2 retains its previous footprint.
 
 ## Nav2 integration
+
+By default the output is `Polygon`. Set `use_stamped_polygon:=true` at launch
+(or the node parameter at startup) to publish `PolygonStamped` on the same topic.
+Its header contains `base_frame` and the common TF time used for the geometry
+(current ROS time for entirely static geometry). On Lyrical/Rolling, also set
+`subscribe_to_stamped_footprint: true` in both Nav2 costmaps. Keep the default
+unstamped mode for Jazzy.
 
 One publisher serves both costmaps on `/dynamic_footprint`. Add these remappings
 to the Nav2 `controller_server` and `planner_server` launch definitions
@@ -100,7 +108,8 @@ ros2 launch nav2_dynamic_footprint dynamic_footprint.launch.py \
 
 Composition starts a dedicated container by default. Add
 `container_name:=/nav2_container` to load into an existing container instead.
-Use `namespace:=robot` to namespace the footprint node.
+Use `namespace:=robot` to namespace the footprint node. In simulation, add
+`use_sim_time:=true` so TF and the footprint publisher use the same `/clock`.
 
 For lifecycle modes, add `dynamic_footprint` to your Nav2 lifecycle manager's
 `node_names`, before the costmap hosts. The managed node supports Nav2 bonds and publishes only while

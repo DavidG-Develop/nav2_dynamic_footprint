@@ -4,7 +4,7 @@ import tempfile
 import time
 import unittest
 
-from geometry_msgs.msg import Polygon
+from geometry_msgs.msg import Polygon, PolygonStamped
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
@@ -43,6 +43,7 @@ def generate_test_description():
                 'namespace': name,
                 'use_lifecycle': str(lifecycle).lower(),
                 'use_composition': str(composed).lower(),
+                'use_stamped_polygon': str(lifecycle or composed).lower(),
                 'container_name': '/shared_container' if existing else '',
                 'urdf': str(urdf), 'footprint_topic': 'footprint',
             }.items()))
@@ -64,8 +65,9 @@ class TestModes(unittest.TestCase):
             messages[name] = msg
 
         subscriptions = [node.create_subscription(
-            Polygon, f'/{name}/footprint',
-            lambda msg, name=name: receive(name, msg), 10) for name, *_ in MODES]
+            PolygonStamped if lifecycle or composed else Polygon, f'/{name}/footprint',
+            lambda msg, name=name: receive(name, msg), 10)
+            for name, lifecycle, composed, _ in MODES]
         self.assertEqual(len(subscriptions), len(MODES))
 
         def wait(predicate):
@@ -103,6 +105,10 @@ class TestModes(unittest.TestCase):
                 transition(clients[name], 3)  # Activate.
             self.assertTrue(wait(lambda: len(messages) == len(MODES)))
             for msg in messages.values():
+                if isinstance(msg, PolygonStamped):
+                    self.assertEqual(msg.header.frame_id, 'base_link')
+                    self.assertGreater(msg.header.stamp.sec, 0)
+                    msg = msg.polygon
                 self.assertEqual(len(msg.points), 4)
                 self.assertAlmostEqual(max(p.x for p in msg.points), 1.0)
                 self.assertAlmostEqual(max(p.y for p in msg.points), 0.5)
