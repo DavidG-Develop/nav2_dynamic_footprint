@@ -1,0 +1,16 @@
+name: ROS 2 jazzy
+on:
+  workflow_run:
+    workflows: [ROS 2 CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+
+jobs:
+  status:
+    uses: ./.github/workflows/ros2-job-status.yaml
+    with:
+      ros_distro: jazzy
+      run_id: ${{ format('{0}', github.event.workflow_run.id) }}

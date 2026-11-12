@@ -31,7 +31,22 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: src/nav2_dynamic_footprint
-      - name: Install dependencies
+      - name: Fetch unreleased Rolling Nav2 dependencies
+        if: matrix.ros_distro == 'rolling'
+        uses: actions/checkout@v4
+        with:
+          repository: ros-navigation/navigation2
+          ref: main
+          path: src/navigation2
+          sparse-checkout: |
+            nav2_common
+            nav2_msgs
+            nav2_ros_common
+            nav2_util
+            nav2_voxel_grid
+            nav2_costmap_2d
+            nav2_lifecycle_manager
+      - name: Set up dependency tooling
         run: |
           source /opt/ros/${{ matrix.ros_distro }}/setup.bash
           apt-get update
@@ -40,15 +55,35 @@ jobs:
             rosdep init
           fi
           rosdep update --rosdistro ${{ matrix.ros_distro }}
-          rosdep install --from-paths src --ignore-src -r -y --rosdistro ${{ matrix.ros_distro }}
+      - name: Build Rolling Nav2 dependencies
+        if: matrix.ros_distro == 'rolling'
+        run: |
+          source /opt/ros/rolling/setup.bash
+          rosdep install --from-paths src/navigation2 --ignore-src -y --rosdistro rolling \
+            --dependency-types build buildtool build_export buildtool_export exec
+          colcon build --base-paths src/navigation2 --symlink-install \
+            --cmake-args -DBUILD_TESTING=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Install and verify package dependencies
+        run: |
+          source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+          if [ -f install/setup.bash ]; then source install/setup.bash; fi
+          rosdep install --from-paths src/nav2_dynamic_footprint --ignore-src -y \
+            --rosdistro ${{ matrix.ros_distro }}
+          rosdep check --from-paths src/nav2_dynamic_footprint --ignore-src \
+            --rosdistro ${{ matrix.ros_distro }}
+          ros2 pkg prefix nav2_costmap_2d
+          ros2 pkg prefix nav2_lifecycle_manager
       - name: Build
         run: |
           source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-          colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          if [ -f install/setup.bash ]; then source install/setup.bash; fi
+          colcon build --packages-select nav2_dynamic_footprint --symlink-install \
+            --cmake-args -DBUILD_TESTING=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - name: Test geometry, linters, components, standalone and Nav2 integration
         run: |
           source install/setup.bash
-          colcon test --event-handlers console_direct+ --return-code-on-test-failure
+          colcon test --packages-select nav2_dynamic_footprint \
+            --event-handlers console_direct+ --return-code-on-test-failure
       - name: Report results
         if: always()
         run: |

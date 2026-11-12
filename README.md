@@ -7,9 +7,9 @@ from URDF collision geometry and TF supplied by `robot_state_publisher`.
 
 | Distribution | Status |
 |--------------|--------|
-| Jazzy | [![Jazzy](https://badgen.net/github/checks/DavidG-Develop/nav2_dynamic_footprint/main/jazzy?label=CI)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
-| Lyrical | [![Lyrical](https://badgen.net/github/checks/DavidG-Develop/nav2_dynamic_footprint/main/lyrical?label=CI)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
-| Rolling | [![Rolling](https://badgen.net/github/checks/DavidG-Develop/nav2_dynamic_footprint/main/rolling?label=CI)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
+| Jazzy | [![Jazzy](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-status-jazzy.yaml/badge.svg?branch=main)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
+| Lyrical | [![Lyrical](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-status-lyrical.yaml/badge.svg?branch=main)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
+| Rolling | [![Rolling](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-status-rolling.yaml/badge.svg?branch=main)](https://github.com/DavidG-Develop/nav2_dynamic_footprint/actions/workflows/ros2-ci.yaml) |
 
 ## Installation
 

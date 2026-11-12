@@ -1,0 +1,35 @@
+name: ROS 2 job status
+on:
+  workflow_call:
+    inputs:
+      ros_distro:
+        type: string
+        required: true
+      run_id:
+        type: string
+        required: true
+
+permissions:
+  actions: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report the original matrix job conclusion
+        uses: actions/github-script@v7
+        env:
+          ROS_DISTRO: ${{ inputs.ros_distro }}
+          CI_RUN_ID: ${{ inputs.run_id }}
+        with:
+          script: |
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: Number(process.env.CI_RUN_ID),
+              per_page: 100,
+            });
+            const job = jobs.find(job => job.name === process.env.ROS_DISTRO);
+            if (!job || job.conclusion !== 'success') {
+              core.setFailed(`${process.env.ROS_DISTRO}: ${job?.conclusion ?? 'job missing'}`);
+            }
