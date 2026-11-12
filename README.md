@@ -3,6 +3,8 @@
 A C++17 ROS 2 component and standalone node that publish a dynamic Nav2 footprint
 from URDF collision geometry and TF supplied by `robot_state_publisher`.
 
+![Dynamic footprint following robot motion](docs/demo.gif)
+
 ## Distribution support
 
 | Distribution | Status |

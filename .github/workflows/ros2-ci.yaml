@@ -60,7 +60,7 @@ jobs:
         run: |
           source /opt/ros/rolling/setup.bash
           rosdep install --from-paths src/navigation2 --ignore-src -y --rosdistro rolling \
-            --dependency-types build buildtool build_export buildtool_export exec
+            -t build -t buildtool -t build_export -t buildtool_export -t exec
           colcon build --base-paths src/navigation2 --symlink-install \
             --cmake-args -DBUILD_TESTING=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - name: Install and verify package dependencies
@@ -88,7 +88,12 @@ jobs:
         if: always()
         run: |
           source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-          colcon test-result --verbose
+          if [ -d build ]; then
+            colcon test-result --test-result-base build --verbose
+          else
+            echo "::notice::No build directory: an earlier checkout or dependency step failed. See the first failed step."
+            echo "No test results: the job failed before creating a build directory. See the first failed step." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
